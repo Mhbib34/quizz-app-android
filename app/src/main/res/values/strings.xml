@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Quiz App</string>
+    <string name="question_number">Pertanyaan %1$d dari %2$d</string>
+    <string name="score">Skor: %1$d</string>
+    <string name="next">LANJUT</string>
+    <string name="answer">JAWAB</string>
+    <string name="finish">SELESAI</string>
+    <string name="select_answer">PILIH JAWABAN</string>
+    <string name="play_again">Main Lagi</string>
+    <string name="exit">Keluar</string>
+    <string name="category">Kategori: %1$s</string>
+</resources>
