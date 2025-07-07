@@ -2,7 +2,9 @@ package com.example.quizapp;
 
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
@@ -18,17 +20,26 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvQuestionNumber, tvScore, tvCategory, tvQuestion;
     private TextView tvOption1, tvOption2, tvOption3, tvOption4;
     private CardView cardOption1, cardOption2, cardOption3, cardOption4;
-    private MaterialButton btnNext;
+    private MaterialButton btnNext, btnBackToCategories;
+    private MediaPlayer startSound, resultSound, correctSound, wrongSound, loseSound;
+
     private ProgressBar progressBar;
 
     private CardView selectedCard = null;
     private int selectedAnswer = -1;
     private boolean answered = false;
+    private String selectedCategory = "Semua";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Ambil kategori yang dipilih dari intent
+        selectedCategory = getIntent().getStringExtra("selected_category");
+        if (selectedCategory == null) {
+            selectedCategory = "Semua";
+        }
 
         initializeViews();
         initializeQuiz();
@@ -50,12 +61,21 @@ public class MainActivity extends AppCompatActivity {
         cardOption3 = findViewById(R.id.cardOption3);
         cardOption4 = findViewById(R.id.cardOption4);
         btnNext = findViewById(R.id.btnNext);
+        btnBackToCategories = findViewById(R.id.btnBackToCategories);
         progressBar = findViewById(R.id.progressBar);
     }
 
     private void initializeQuiz() {
-        quizManager = new QuizManager();
+        startSound = MediaPlayer.create(this, R.raw.game_start);
+        startSound.start();
+        quizManager = new QuizManager(selectedCategory);
         progressBar.setMax(quizManager.getTotalQuestions());
+
+        // Jika tidak ada soal untuk kategori yang dipilih
+        if (quizManager.getTotalQuestions() == 0) {
+            showNoQuestionsDialog();
+            return;
+        }
     }
 
     private void setupClickListeners() {
@@ -70,6 +90,12 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 nextQuestion();
             }
+        });
+
+        btnBackToCategories.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, CategorySelectionActivity.class);
+            startActivity(intent);
+            finish();
         });
     }
 
@@ -88,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Apply selected style
         card.setCardBackgroundColor(getColor(R.color.selected_option));
+        textView.setTextColor(Color.BLACK);
         card.setCardElevation(8f);
         textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_radio_checked, 0, 0, 0);
 
@@ -103,11 +130,15 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-    private void resetCardStyle(CardView card) {
-        card.setCardBackgroundColor(Color.WHITE);
+    private void resetCardStyle(CardView card, TextView textview) {
+        card.setCardBackgroundColor(getColor(R.color.text_primary));
+        textview.setTextColor(Color.WHITE);
         card.setCardElevation(4f);
     }
 
+    private void resetCardStyle(CardView card) {
+        resetCardStyle(card, getTextViewFromCard(card));
+    }
     private void resetTextViewStyle(TextView textView) {
         if (textView != null) {
             textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_radio_unchecked, 0, 0, 0);
@@ -127,13 +158,22 @@ public class MainActivity extends AppCompatActivity {
 
         // Style correct answer
         correctCard.setCardBackgroundColor(getColor(R.color.correct_answer));
-        correctTextView.setTextColor(Color.BLACK);
+        correctTextView.setTextColor(Color.WHITE);
+
+        if (isCorrect) {
+            correctSound = MediaPlayer.create(this, R.raw.correct);
+            correctSound.start();
+        } else {
+            // Jawaban SALAH
+            wrongSound = MediaPlayer.create(this, R.raw.wrong);
+            wrongSound.start();
+        }
 
         // Style wrong answer if selected
         if (!isCorrect && selectedCard != null) {
             selectedCard.setCardBackgroundColor(getColor(R.color.wrong_answer));
             TextView selectedTextView = getTextViewFromCard(selectedCard);
-            selectedTextView.setTextColor(Color.BLACK);
+            selectedTextView.setTextColor(Color.WHITE);
         }
 
         // Update score
@@ -142,29 +182,10 @@ public class MainActivity extends AppCompatActivity {
         // Change button text
         if (quizManager.hasMoreQuestions()) {
             btnNext.setText("LANJUT");
-
         } else {
             btnNext.setText("SELESAI");
         }
 
-//        // Tampilkan modal hasil jawaban
-//        String title = isCorrect ? "✅ Jawaban Benar!" : "❌ Jawaban Salah!";
-//        String message = isCorrect ?
-//                "Bagus! Kamu menjawab dengan benar." :
-//                "Yah, jawaban kamu salah.\nJawaban yang benar adalah:\n\n" +
-//                        currentQuestion.getOptions()[correctAnswer];
-//
-//        new AlertDialog.Builder(this)
-//                .setTitle(title)
-//                .setMessage(message)
-//                .setCancelable(false)
-//                .setPositiveButton("Lanjut", (dialog, which) -> {
-//                    btnNext.setEnabled(true); // aktifkan tombol setelah dialog ditutup
-//                })
-//                .show();
-//
-//        btnNext.setEnabled(false); // nonaktifkan tombol sementara
-//    }
         btnNext.setBackgroundColor(getColor(R.color.accent));
 
         // Add delay before enabling next button
@@ -212,13 +233,12 @@ public class MainActivity extends AppCompatActivity {
         resetTextViewStyle(tvOption3);
         resetTextViewStyle(tvOption4);
 
-        tvOption1.setTextColor(getColor(R.color.text_primary));
-        tvOption2.setTextColor(getColor(R.color.text_primary));
-        tvOption3.setTextColor(getColor(R.color.text_primary));
-        tvOption4.setTextColor(getColor(R.color.text_primary));
+        tvOption1.setTextColor(getColor(R.color.white));
+        tvOption2.setTextColor(getColor(R.color.white));
+        tvOption3.setTextColor(getColor(R.color.white));
+        tvOption4.setTextColor(getColor(R.color.white));
 
         btnNext.setBackgroundColor(getColor(R.color.primary));
-
     }
 
     private void displayQuestion() {
@@ -251,21 +271,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showFinalScore() {
+        if (startSound != null && startSound.isPlaying()) {
+            startSound.stop();
+            startSound.release();
+            startSound = null;
+        }
         int score = quizManager.getScore();
         int total = quizManager.getTotalQuestions();
         double percentage = (double) score / total * 100;
 
         String title;
-        String message = "Skor Anda: " + score + "/" + total +
+        String message = "Kategori: " + selectedCategory +
+                "\nSkor Anda: " + score + "/" + total +
                 "\nPersentase: " + String.format("%.1f", percentage) + "%";
 
+        resultSound = MediaPlayer.create(this,R.raw.win);
+
         if (percentage >= 80) {
+            resultSound.start();
             title = "🎉 Luar Biasa!";
             message += "\n\nAnda sangat hebat!";
         } else if (percentage >= 60) {
+            resultSound.start();
             title = "👍 Bagus!";
             message += "\n\nTerus tingkatkan!";
         } else {
+            loseSound = MediaPlayer.create(this,R.raw.lose);
+            loseSound.start();
             title = "💪 Tetap Semangat!";
             message += "\n\nAyo coba lagi!";
         }
@@ -274,16 +306,61 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("Main Lagi", (dialog, which) -> restartQuiz())
+                .setNegativeButton("Pilih Kategori", (dialog, which) -> backToCategories())
+                .setNeutralButton("Keluar", (dialog, which) -> finish())
+                .setCancelable(false)
+                .show();
+    }
+
+    private void showNoQuestionsDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Tidak Ada Soal")
+                .setMessage("Tidak ada soal untuk kategori: " + selectedCategory)
+                .setPositiveButton("Pilih Kategori Lain", (dialog, which) -> backToCategories())
                 .setNegativeButton("Keluar", (dialog, which) -> finish())
                 .setCancelable(false)
                 .show();
     }
 
     private void restartQuiz() {
+        stopStartSoundIfPlaying();
         quizManager.resetQuiz();
         resetQuestionUI();
         progressBar.setProgress(0);
         tvScore.setText("Skor: 0");
+        startSound = MediaPlayer.create(this, R.raw.game_start); // play ulang
+        startSound.start();
         displayQuestion();
     }
+
+    private void backToCategories() {
+        stopStartSoundIfPlaying();
+        Intent intent = new Intent(MainActivity.this, CategorySelectionActivity.class);
+        startActivity(intent);
+        finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        new AlertDialog.Builder(this)
+                .setTitle("Keluar Quiz")
+                .setMessage("Apakah Anda yakin ingin keluar? Progress akan hilang.")
+                .setPositiveButton("Ya", (dialog, which) -> backToCategories())
+                .setNegativeButton("Tidak", null)
+                .show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopStartSoundIfPlaying();
+    }
+    private void stopStartSoundIfPlaying() {
+        if (startSound != null && startSound.isPlaying()) {
+            startSound.stop();
+            startSound.release();
+            startSound = null;
+        }
+    }
+
 }

@@ -13,7 +13,8 @@ public class SplashActivity extends AppCompatActivity {
         setContentView(R.layout.activity_splash);
 
         new Handler().postDelayed(() -> {
-            Intent intent = new Intent(SplashActivity.this, MainActivity.class);
+            // Arahkan ke CategorySelectionActivity sebagai pengganti MainActivity
+            Intent intent = new Intent(SplashActivity.this, CategorySelectionActivity.class);
             startActivity(intent);
             finish();
         }, 2000);
