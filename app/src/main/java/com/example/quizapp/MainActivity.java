@@ -3,15 +3,18 @@ package com.example.quizapp;
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
+import androidx.core.content.ContextCompat;
 import com.google.android.material.button.MaterialButton;
 
 public class MainActivity extends AppCompatActivity {
@@ -24,6 +27,13 @@ public class MainActivity extends AppCompatActivity {
     private MediaPlayer startSound, resultSound, correctSound, wrongSound, loseSound;
 
     private ProgressBar progressBar;
+
+    // Timer variables
+    private TextView tvTimer;
+    private ProgressBar progressBarTimer;
+    private CountDownTimer countDownTimer;
+    private static final long TIMER_DURATION = 15000; // 15 detik
+    private boolean isTimerRunning = false;
 
     private CardView selectedCard = null;
     private int selectedAnswer = -1;
@@ -63,6 +73,10 @@ public class MainActivity extends AppCompatActivity {
         btnNext = findViewById(R.id.btnNext);
         btnBackToCategories = findViewById(R.id.btnBackToCategories);
         progressBar = findViewById(R.id.progressBar);
+
+        // Timer views
+        tvTimer = findViewById(R.id.tvTimer);
+        progressBarTimer = findViewById(R.id.progressBarTimer);
     }
 
     private void initializeQuiz() {
@@ -93,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnBackToCategories.setOnClickListener(v -> {
+            stopTimer();
             Intent intent = new Intent(MainActivity.this, CategorySelectionActivity.class);
             startActivity(intent);
             finish();
@@ -113,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
         selectedAnswer = optionIndex;
 
         // Apply selected style
-        card.setCardBackgroundColor(getColor(R.color.selected_option));
+        card.setCardBackgroundColor(ContextCompat.getColor(this, R.color.selected_option));
         textView.setTextColor(Color.BLACK);
         card.setCardElevation(8f);
         textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_radio_checked, 0, 0, 0);
@@ -131,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void resetCardStyle(CardView card, TextView textview) {
-        card.setCardBackgroundColor(getColor(R.color.text_primary));
+        card.setCardBackgroundColor(ContextCompat.getColor(this, R.color.text_primary));
         textview.setTextColor(Color.WHITE);
         card.setCardElevation(4f);
     }
@@ -139,15 +154,76 @@ public class MainActivity extends AppCompatActivity {
     private void resetCardStyle(CardView card) {
         resetCardStyle(card, getTextViewFromCard(card));
     }
+
     private void resetTextViewStyle(TextView textView) {
         if (textView != null) {
             textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_radio_unchecked, 0, 0, 0);
         }
     }
 
+    private void startTimer() {
+        isTimerRunning = true;
+        progressBarTimer.setMax(15);
+        progressBarTimer.setProgress(15);
+
+        countDownTimer = new CountDownTimer(TIMER_DURATION, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                int secondsRemaining = (int) (millisUntilFinished / 1000);
+                tvTimer.setText(String.valueOf(secondsRemaining));
+                progressBarTimer.setProgress(secondsRemaining);
+
+                // Ubah warna timer ketika tersisa 5 detik
+                if (secondsRemaining <= 5) {
+                    tvTimer.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.wrong_answer));
+                    progressBarTimer.setProgressTintList(
+                            ColorStateList.valueOf(ContextCompat.getColor(MainActivity.this, R.color.wrong_answer))
+                    );
+                } else {
+                    tvTimer.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.primary));
+                    progressBarTimer.setProgressTintList(
+                            ColorStateList.valueOf(ContextCompat.getColor(MainActivity.this, R.color.primary))
+                    );
+                }
+            }
+
+            @Override
+            public void onFinish() {
+                tvTimer.setText("0");
+                progressBarTimer.setProgress(0);
+                isTimerRunning = false;
+
+                // Waktu habis, otomatis jawab dengan tidak ada pilihan
+                if (!answered) {
+                    selectedAnswer = -1; // Tidak ada jawaban
+                    checkAnswer();
+                }
+            }
+        };
+
+        countDownTimer.start();
+    }
+
+    private void stopTimer() {
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+            countDownTimer = null;
+        }
+        isTimerRunning = false;
+    }
+
     private void checkAnswer() {
+        stopTimer();
         answered = true;
-        boolean isCorrect = quizManager.answerQuestion(selectedAnswer);
+
+        boolean isCorrect = false;
+
+        if (selectedAnswer != -1) {
+            isCorrect = quizManager.answerQuestion(selectedAnswer);
+        } else {
+            // Waktu habis, tidak ada jawaban yang dipilih
+            quizManager.answerQuestion(-1); // Jawaban salah
+        }
 
         // Show correct answer
         Question currentQuestion = quizManager.getCurrentQuestion();
@@ -157,21 +233,21 @@ public class MainActivity extends AppCompatActivity {
         TextView correctTextView = getTextViewFromCard(correctCard);
 
         // Style correct answer
-        correctCard.setCardBackgroundColor(getColor(R.color.correct_answer));
+        correctCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.correct_answer));
         correctTextView.setTextColor(Color.WHITE);
 
         if (isCorrect) {
             correctSound = MediaPlayer.create(this, R.raw.correct);
             correctSound.start();
         } else {
-            // Jawaban SALAH
+            // Jawaban SALAH atau waktu habis
             wrongSound = MediaPlayer.create(this, R.raw.wrong);
             wrongSound.start();
         }
 
         // Style wrong answer if selected
         if (!isCorrect && selectedCard != null) {
-            selectedCard.setCardBackgroundColor(getColor(R.color.wrong_answer));
+            selectedCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.wrong_answer));
             TextView selectedTextView = getTextViewFromCard(selectedCard);
             selectedTextView.setTextColor(Color.WHITE);
         }
@@ -186,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
             btnNext.setText("SELESAI");
         }
 
-        btnNext.setBackgroundColor(getColor(R.color.accent));
+        btnNext.setBackgroundColor(ContextCompat.getColor(this, R.color.accent));
 
         // Add delay before enabling next button
         new Handler().postDelayed(() -> btnNext.setEnabled(true), 1000);
@@ -233,12 +309,18 @@ public class MainActivity extends AppCompatActivity {
         resetTextViewStyle(tvOption3);
         resetTextViewStyle(tvOption4);
 
-        tvOption1.setTextColor(getColor(R.color.white));
-        tvOption2.setTextColor(getColor(R.color.white));
-        tvOption3.setTextColor(getColor(R.color.white));
-        tvOption4.setTextColor(getColor(R.color.white));
+        tvOption1.setTextColor(ContextCompat.getColor(this, R.color.white));
+        tvOption2.setTextColor(ContextCompat.getColor(this, R.color.white));
+        tvOption3.setTextColor(ContextCompat.getColor(this, R.color.white));
+        tvOption4.setTextColor(ContextCompat.getColor(this, R.color.white));
 
-        btnNext.setBackgroundColor(getColor(R.color.primary));
+        btnNext.setBackgroundColor(ContextCompat.getColor(this, R.color.primary));
+
+        // Reset timer display
+        tvTimer.setTextColor(ContextCompat.getColor(this, R.color.primary));
+        progressBarTimer.setProgressTintList(
+                ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
+        );
     }
 
     private void displayQuestion() {
@@ -263,6 +345,9 @@ public class MainActivity extends AppCompatActivity {
                             progressBar.getProgress(), quizManager.getCurrentQuestionNumber() - 1)
                     .setDuration(300)
                     .start();
+
+            // Start timer untuk pertanyaan baru
+            startTimer();
         }
     }
 
@@ -271,6 +356,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showFinalScore() {
+        stopTimer();
+
         if (startSound != null && startSound.isPlaying()) {
             startSound.stop();
             startSound.release();
@@ -324,6 +411,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void restartQuiz() {
         stopStartSoundIfPlaying();
+        stopTimer();
         quizManager.resetQuiz();
         resetQuestionUI();
         progressBar.setProgress(0);
@@ -335,6 +423,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void backToCategories() {
         stopStartSoundIfPlaying();
+        stopTimer();
         Intent intent = new Intent(MainActivity.this, CategorySelectionActivity.class);
         startActivity(intent);
         finish();
@@ -342,11 +431,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        stopTimer();
         new AlertDialog.Builder(this)
                 .setTitle("Keluar Quiz")
                 .setMessage("Apakah Anda yakin ingin keluar? Progress akan hilang.")
                 .setPositiveButton("Ya", (dialog, which) -> backToCategories())
-                .setNegativeButton("Tidak", null)
+                .setNegativeButton("Tidak", (dialog, which) -> startTimer()) // Restart timer jika batal keluar
                 .show();
     }
 
@@ -354,7 +444,25 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopStartSoundIfPlaying();
+        stopTimer();
     }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (isTimerRunning && !answered) {
+            stopTimer();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!answered && !isTimerRunning) {
+            startTimer();
+        }
+    }
+
     private void stopStartSoundIfPlaying() {
         if (startSound != null && startSound.isPlaying()) {
             startSound.stop();
@@ -362,5 +470,4 @@ public class MainActivity extends AppCompatActivity {
             startSound = null;
         }
     }
-
 }
